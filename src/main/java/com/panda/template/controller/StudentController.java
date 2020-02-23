@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.ModelAndView;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -26,7 +27,11 @@ public class StudentController {
 
         Student student = studentService.getStudent(id);
         response.getWriter().write(JSON.toJSONString(student));
+    }
 
+    @RequestMapping(value = "main", method = RequestMethod.GET)
+    public ModelAndView mainPage() {
+        return new ModelAndView("main");
     }
 
 }
