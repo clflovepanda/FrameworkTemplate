@@ -1,8 +1,6 @@
 package com.panda.template.controller;
 
-import com.alibaba.fastjson.JSON;
-import com.panda.template.entity.Student;
-import com.panda.template.service.StudentService;
+import com.panda.template.biz.OriginDataBiz;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,16 +15,13 @@ import java.io.IOException;
 public class StudentController {
 
     @Autowired
-    private StudentService studentService;
+    private OriginDataBiz originDataBiz;
 
     @RequestMapping(value = "getStudent", method = RequestMethod.GET)
     public void studentController(@RequestParam("id") int id,
                                   HttpServletRequest request,
                                   HttpServletResponse response) throws IOException {
-
-        Student student = studentService.getStudent(id);
-        response.getWriter().write(JSON.toJSONString(student));
-
+        response.getWriter().write("");
     }
 
 }
