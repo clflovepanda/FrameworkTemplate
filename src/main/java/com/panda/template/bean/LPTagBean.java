@@ -11,7 +11,11 @@ import java.util.List;
 public class LPTagBean {
 
     List<TagBean> bossTagList;
+    String bossJobKind;
+    int bossType;
     List<TagBean> zlTagList;
+    String zlJobKind;
+    int zlType;
 
     public LPTagBean() {
         this.bossTagList = new ArrayList<>();

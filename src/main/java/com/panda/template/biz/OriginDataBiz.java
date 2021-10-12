@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.panda.template.bean.LPTagBean;
+import com.panda.template.bean.NodeBean;
 import com.panda.template.bean.TagBean;
 import com.panda.template.utils.words.DividedWord;
 import com.panda.template.utils.words.DividedWordsUtil;
@@ -23,21 +24,21 @@ import java.util.*;
 @Component
 public class OriginDataBiz {
 
-    private static JSONArray bossJson;
-    private static JSONArray zlJson;
-    private static JSONArray lpJson;
+    private JSONArray bossJson;
+    private JSONArray zlJson;
+    private JSONArray lpJson;
 
-    private static Map<String, List<DividedWord>> lpKwMap = new HashMap<>();
-    private static Map<String, List<DividedWord>> bossKwMap = new HashMap<>();
-    private static Map<String, List<DividedWord>> zlKwMap = new HashMap<>();
+    private Map<String, List<DividedWord>> lpKwMap = new HashMap<>();
+    private Map<String, List<DividedWord>> bossKwMap = new HashMap<>();
+    private Map<String, List<DividedWord>> zlKwMap = new HashMap<>();
 
-    private static Map<String, List<TagBean>> bossTagMap = new HashMap<>();
-    private static Map<String, List<TagBean>> zlTagMap = new HashMap<>();
-    private static Map<String, List<TagBean>> lpTagMap = new HashMap<>();
+    private Map<String, List<TagBean>> bossTagMap = new HashMap<>();
+    private Map<String, List<TagBean>> zlTagMap = new HashMap<>();
+    private Map<String, List<TagBean>> lpTagMap = new HashMap<>();
 
-    private static Map<String, LPTagBean> lpPreTagMap = new HashMap<>();
+    private Map<String, LPTagBean> lpPreTagMap = new HashMap<>();
 
-    private static Map<String, Integer> keyStatistic = new HashMap<>();
+    private Map<String, Integer> keyStatistic = new HashMap<>();
 
     @PostConstruct
     private void start() throws Exception {
@@ -47,34 +48,92 @@ public class OriginDataBiz {
         deepLPJobTree();//遍历LPTree并且对每个三级职类进行判断
     }
 
-    private static void initBossJson() throws Exception {
-        File file = new File("./format/boss_tree.txt");
+    private JSONObject findObj(JSONObject obj, String name) {
+        if (obj.getString("name").equals(name)) {
+            return obj;
+        } else {
+            JSONArray children = obj.getJSONArray("children");
+            return findObj(children, name);
+        }
+    }
+
+    private JSONObject findObj(JSONArray arr, String name) {
+        if (arr == null || arr.isEmpty()) {
+            return null;
+        }
+        for (int i = 0 ; i < arr.size() ; i ++) {
+            JSONObject temp = arr.getJSONObject(i);
+            JSONObject res = findObj(temp, name);
+            if (res != null) {
+                return res;
+            }
+        }
+        return null;
+    }
+
+    public LPTagBean getTags(String name) {
+        return this.lpPreTagMap.get(name);
+    }
+
+    public List<NodeBean> getNode(String name) {
+        List<NodeBean> result = new ArrayList<>();
+        if (name == null || "".equals(name)) {
+            for (int i = 0 ; i < lpJson.size() ; i ++) {
+                JSONObject temp = lpJson.getJSONObject(i);
+                result.add(new NodeBean(temp.getString("name")));
+            }
+            return result;
+        } else {
+            JSONObject res = findObj(lpJson, name);
+            if (res == null) {
+                return new ArrayList<>();
+            } else {
+                JSONArray arr = res.getJSONArray("children");
+                for (int i = 0 ; i < arr.size() ; i ++) {
+                    JSONObject temp = arr.getJSONObject(i);
+                    result.add(new NodeBean(temp.getString("name")));
+                }
+                return result;
+            }
+        }
+    }
+
+    public Map<String, LPTagBean> getLpPreTagMap() {
+        return lpPreTagMap;
+    }
+
+    private void initBossJson() throws Exception {
+        File file = new File(this.getClass().getClassLoader().getResource("data/format/boss_tree.txt").getFile());
         BufferedReader br = new BufferedReader(new FileReader(file));
         String origin = br.readLine();
-        bossJson = JSON.parseArray(origin);
+        this.bossJson = JSON.parseArray(origin);
     }
 
-    private static void initLPJson() throws Exception {
-        File file = new File("./format/lp_tree.txt");
+    private void initLPJson() throws Exception {
+        File file = new File(this.getClass().getClassLoader().getResource("data/format/lp_tree.txt").getFile());
         BufferedReader br = new BufferedReader(new FileReader(file));
         String origin = br.readLine();
-        lpJson = JSON.parseArray(origin);
+        this.lpJson = JSON.parseArray(origin);
     }
 
-    private static void initZLJson() throws Exception {
-        File file = new File("./format/zl_tree.txt");
+    private void initZLJson() throws Exception {
+        File file = new File(this.getClass().getClassLoader().getResource("data/format/zl_tree.txt").getFile());
         BufferedReader br = new BufferedReader(new FileReader(file));
         String origin = br.readLine();
-        zlJson = JSON.parseArray(origin);
+        this.zlJson = JSON.parseArray(origin);
     }
 
-    private static void init() throws Exception {
-        initBossJson();
-        initLPJson();
-        initZLJson();
+    private void init() throws Exception {
+        this.initBossJson();
+        this.initLPJson();
+        this.initZLJson();
     }
 
-    private static void deepAndGenerateTags(Map<String, List<TagBean>> tagMap, JSONObject obj) {
+    private void deepAndGenerateTags(Map<String, List<TagBean>> tagMap, JSONObject obj) {
+        int level = obj.getInteger("level");
+        if (level > 3) {
+            return;
+        }
         String jobKindName = obj.getString("name");
         JSONArray children = obj.getJSONArray("children");
         if (children == null || children.isEmpty()) {
@@ -92,47 +151,50 @@ public class OriginDataBiz {
                 tagBeans.add(new TagBean(tagObj.getString("name"), temp.getString("name")));
             }
         }
+//        System.out.println("设置标签：" + jobKindName + "-" + tagBeans.size());
         tagMap.put(jobKindName, tagBeans);
     }
 
-    private static void deepAndGenerateKw(Map<String, List<DividedWord>> map, Map<String, List<TagBean>> tagMap, JSONObject obj) throws IOException {
+    private void deepAndGenerateKw(Map<String, List<DividedWord>> map, Map<String, List<TagBean>> tagMap, JSONObject obj) throws IOException {
         if (obj == null || obj.getInteger("level") > 3) {
-            deepAndGenerateTags(tagMap, obj);
             return;
+        }
+        if (obj == null || obj.getInteger("level") == 3) {
+            this.deepAndGenerateTags(tagMap, obj);
         }
         String name = obj.getString("name");
         List<DividedWord> dw = DividedWordsUtil.dividedWords(name);
         map.put(name, dw);
         for (DividedWord temp : dw) {
-            Integer cnt = keyStatistic.get(temp.getWord());
+            Integer cnt = this.keyStatistic.get(temp.getWord());
             if (cnt == null) {
-                keyStatistic.put(temp.getWord(), 1);
+                this.keyStatistic.put(temp.getWord(), 1);
             } else {
-                keyStatistic.put(temp.getWord(), cnt + 1);
+               this. keyStatistic.put(temp.getWord(), cnt + 1);
             }
         }
         JSONArray children = obj.getJSONArray("children");
         for (int i = 0 ; i < children.size() ; i ++) {
-            deepAndGenerateKw(map, tagMap, children.getJSONObject(i));
+            this.deepAndGenerateKw(map, tagMap, children.getJSONObject(i));
         }
     }
 
-    private static void generateKw() throws IOException {
-        for (int i = 0 ; i < lpJson.size() ; i ++) {
-            deepAndGenerateKw(lpKwMap, lpTagMap, lpJson.getJSONObject(i));
+    private void generateKw() throws IOException {
+        for (int i = 0 ; i < this.lpJson.size() ; i ++) {
+            this.deepAndGenerateKw(this.lpKwMap, this.lpTagMap, this.lpJson.getJSONObject(i));
         }
 
-        for (int i = 0 ; i < bossJson.size() ; i ++) {
-            deepAndGenerateKw(bossKwMap, bossTagMap, bossJson.getJSONObject(i));
+        for (int i = 0 ; i < this.bossJson.size() ; i ++) {
+            this.deepAndGenerateKw(this.bossKwMap, this.bossTagMap, this.bossJson.getJSONObject(i));
         }
 
-        for (int i = 0 ; i < zlJson.size() ; i ++) {
-            deepAndGenerateKw(zlKwMap, zlTagMap, zlJson.getJSONObject(i));
+        for (int i = 0 ; i < this.zlJson.size() ; i ++) {
+            this.deepAndGenerateKw(this.zlKwMap, this.zlTagMap, this.zlJson.getJSONObject(i));
         }
     }
 
-    private static void initWordDiction() throws Exception {
-        File file = new File("./jobwords.dic");
+    private void initWordDiction() throws Exception {
+        File file = new File(this.getClass().getClassLoader().getResource("data/jobwords.dic").getFile());
         BufferedReader br = new BufferedReader(new FileReader(file));
         Set<String> wordsSet = new HashSet<>();
         while (true) {
@@ -142,8 +204,8 @@ public class OriginDataBiz {
             }
             wordsSet.add(temp);
         }
-        org.wltea.analyzer.dic.Dictionary.initial(DefaultConfig.getInstance());
-        org.wltea.analyzer.dic.Dictionary.getSingleton().addWords(wordsSet);
+        Dictionary.initial(DefaultConfig.getInstance());
+        Dictionary.getSingleton().addWords(wordsSet);
         Set<String> disWords = new HashSet<>();
         disWords.add("金工");
         disWords.add("装工");
@@ -163,21 +225,21 @@ public class OriginDataBiz {
         Dictionary.getSingleton().disableWords(disWords);
     }
 
-    private static void deepJobTree(JSONObject obj, Executor<JSONObject> executor) throws Exception {
+    private void deepJobTree(JSONObject obj, Executor<JSONObject> executor) throws Exception {
         if (obj.getInteger("level") >= 3) {
             executor.exec(obj);
         } else {
-            deepJobTree(obj.getJSONArray("children"), executor);
+            this.deepJobTree(obj.getJSONArray("children"), executor);
         }
     }
 
-    private static void deepJobTree(JSONArray arr, Executor<JSONObject> executor) throws Exception {
+    private void deepJobTree(JSONArray arr, Executor<JSONObject> executor) throws Exception {
         for (int i = 0 ; i < arr.size() ; i ++) {
-            deepJobTree(arr.getJSONObject(i), executor);
+            this.deepJobTree(arr.getJSONObject(i), executor);
         }
     }
 
-    private static String deepFindInTree(JSONObject obj, List<DividedWord> words) throws IOException {
+    private String deepFindInTree(JSONObject obj, List<DividedWord> words) throws IOException {
         JSONArray children = obj.getJSONArray("children");
         int level = obj.getInteger("level");
         String name = obj.getString("name");
@@ -187,7 +249,7 @@ public class OriginDataBiz {
                 return name;
             }
         } else {
-            String res = deepFindInTree(children, words);
+            String res = this.deepFindInTree(children, words);
             if (res != null && res.length() > 0 && level >= 3) {
                 return name;
             }
@@ -195,9 +257,9 @@ public class OriginDataBiz {
         return null;
     }
 
-    private static String deepFindInTree(JSONArray arr, List<DividedWord> words) throws IOException {
+    private String deepFindInTree(JSONArray arr, List<DividedWord> words) throws IOException {
         for (int i = 0 ; i < arr.size() ; i ++) {
-            String res = deepFindInTree(arr.getJSONObject(i), words);
+            String res = this.deepFindInTree(arr.getJSONObject(i), words);
             if (res != null && res.length() > 0) {
                 return res;
             }
@@ -205,7 +267,7 @@ public class OriginDataBiz {
         return null;
     }
 
-    private static boolean contains(List<DividedWord> words, DividedWord word) {
+    private boolean contains(List<DividedWord> words, DividedWord word) {
         for (int i = 0 ; i < words.size() ; i ++) {
             if (words.get(i).getWord().equals(word.getWord())) {
                 return true;
@@ -214,22 +276,22 @@ public class OriginDataBiz {
         return false;
     }
 
-    private static boolean allOfWords(List<DividedWord> aList, List<DividedWord> bList) {
+    private boolean allOfWords(List<DividedWord> aList, List<DividedWord> bList) {
         if (aList.size() != bList.size()) {
             return false;
         }
         for (int i = 0 ; i < aList.size() ; i ++) {
-            if (!contains(aList, bList.get(i)) || !contains(bList, aList.get(i))) {
+            if (!this.contains(aList, bList.get(i)) || !this.contains(bList, aList.get(i))) {
                 return false;
             }
         }
         return true;
     }
 
-    private static boolean multiWords(List<DividedWord> aList, List<DividedWord> bList, int filter) {
+    private boolean multiWords(List<DividedWord> aList, List<DividedWord> bList, int filter) {
         int cnt = 0;
         for (int i = 0 ; i < aList.size() ; i ++) {
-            if (contains(bList, aList.get(i))) {
+            if (this.contains(bList, aList.get(i))) {
                 cnt ++;
             }
         }
@@ -238,7 +300,7 @@ public class OriginDataBiz {
         }
         cnt = 0;
         for (int i = 0 ; i < bList.size() ; i ++) {
-            if (contains(aList, bList.get(i))) {
+            if (this.contains(aList, bList.get(i))) {
                 cnt ++;
             }
         }
@@ -248,10 +310,10 @@ public class OriginDataBiz {
         return false;
     }
 
-    private static boolean subSetWords(List<DividedWord> aList, List<DividedWord> bList) {
+    private boolean subSetWords(List<DividedWord> aList, List<DividedWord> bList) {
         int i = 0;
         for (i = 0 ; i < aList.size() ; i ++) {
-            if (!contains(bList, aList.get(i))) {
+            if (!this.contains(bList, aList.get(i))) {
                 break;
             }
         }
@@ -259,7 +321,7 @@ public class OriginDataBiz {
             return true;
         }
         for (i = 0 ; i < bList.size() ; i ++) {
-            if (!contains(aList, bList.get(i))) {
+            if (!this.contains(aList, bList.get(i))) {
                 break;
             }
         }
@@ -269,37 +331,37 @@ public class OriginDataBiz {
         return false;
     }
 
-    private static int fit(List<DividedWord> aList, List<DividedWord> bList) {
-        if (aList.size() <= 0 || bList.size() <= 0) {
+    private int fit(List<DividedWord> aList, List<DividedWord> bList) {
+        if (aList == null || bList == null || aList.size() <= 0 || bList.size() <= 0) {
             return 0;
         }
         //全词匹配
-        if (allOfWords(aList, bList)) {
+        if (this.allOfWords(aList, bList)) {
             return 1;
         }
         //三词匹配
-        if (multiWords(aList, bList, 2)) {
+        if (this.multiWords(aList, bList, 2)) {
             return 2;
         }
         //词汇子集（双向）
-        if (subSetWords(aList, bList)) {
+        if (this.subSetWords(aList, bList)) {
             return 3;
         }
         return 0;
     }
 
-    private static String deepFitBoss(List<DividedWord> words) throws IOException {
-        return deepFindInTree(bossJson, words);
+    private String deepFitBoss(List<DividedWord> words) throws IOException {
+        return this.deepFindInTree(bossJson, words);
     }
 
-    private static String deepFitZL(List<DividedWord> words) throws IOException {
-        return deepFindInTree(zlJson, words);
+    private String deepFitZL(List<DividedWord> words) throws IOException {
+        return this.deepFindInTree(zlJson, words);
     }
 
-    private static Pair<String, Integer> searchInBoss(List<DividedWord> words) throws IOException {
-        Set<Map.Entry<String, List<DividedWord>>> entrySet = bossKwMap.entrySet();
+    private Pair<String, Integer> searchInBoss(List<DividedWord> words) throws IOException {
+        Set<Map.Entry<String, List<DividedWord>>> entrySet = this.bossKwMap.entrySet();
         for (Map.Entry<String, List<DividedWord>> temp : entrySet) {
-            int res = fit(temp.getValue(), words);
+            int res = this.fit(temp.getValue(), words);
             if (res > 0) {
                 return new Pair<>(temp.getKey(), res);
             } else if (multiWords(temp.getValue(), words, 1)){
@@ -309,10 +371,10 @@ public class OriginDataBiz {
         return null;
     }
 
-    private static Pair<String, Integer> searchInZL(List<DividedWord> words) throws IOException {
-        Set<Map.Entry<String, List<DividedWord>>> entrySet = zlKwMap.entrySet();
+    private Pair<String, Integer> searchInZL(List<DividedWord> words) throws IOException {
+        Set<Map.Entry<String, List<DividedWord>>> entrySet = this.zlKwMap.entrySet();
         for (Map.Entry<String, List<DividedWord>> temp : entrySet) {
-            int res = fit(temp.getValue(), words);
+            int res = this.fit(temp.getValue(), words);
             if (res > 0) {
                 return new Pair<>(temp.getKey(), res);
             } else if (multiWords(temp.getValue(), words, 1)) {
@@ -322,20 +384,24 @@ public class OriginDataBiz {
         return null;
     }
 
-    private static int total = 0;
-    private static int zero = 0;
-    private static int one = 0;
-    private static int two = 0;
-    private static int boss = 0;
-    private static int zl = 0;
+    private int total = 0;
+    private int zero = 0;
+    private int one = 0;
+    private int two = 0;
+    private int boss = 0;
+    private int zl = 0;
 
-    private static void deepLPJobTree() throws Exception {
+    private void deepLPJobTree() throws Exception {
 
-        deepJobTree(lpJson, new Executor<JSONObject>() {
+        this.deepJobTree(this.lpJson, new Executor<JSONObject>() {
             @Override
             public void exec(JSONObject jsonObject) throws Exception {
                 String name = jsonObject.getString("name");
                 List<DividedWord> words = lpKwMap.get(name);
+                if (words == null) {
+                    System.out.println("猎聘职类分词为空: " + name);
+                    return;
+                }
                 Pair<String, Integer> bossRes = searchInBoss(words);
                 Pair<String, Integer> zlRes = searchInZL(words);
 //                System.out.println(jsonObject.getString("name") + " - " + bossRes + " - " + zlRes);
@@ -343,10 +409,14 @@ public class OriginDataBiz {
                 if (bossRes != null) {//根据匹配到的Boss的三级职类获取标签列表
                     List<TagBean> bossTagList = bossTagMap.get(bossRes.getKey());
                     lpTagBean.setBossTagList(bossTagList);
+                    lpTagBean.setBossJobKind(bossRes.getKey());
+                    lpTagBean.setBossType(bossRes.getValue());
                 }
                 if (zlRes != null) {//根据匹配到的智联招聘的三级职类获取标签列表
-                    List<TagBean> zlTagList = zlTagMap.get(bossRes.getKey());
-                    lpTagBean.setBossTagList(zlTagList);
+                    List<TagBean> zlTagList = zlTagMap.get(zlRes.getKey());
+                    lpTagBean.setZlTagList(zlTagList);
+                    lpTagBean.setZlJobKind(zlRes.getKey());
+                    lpTagBean.setZlType(zlRes.getValue());
                 }
                 lpPreTagMap.put(name, lpTagBean);
                 total ++;
