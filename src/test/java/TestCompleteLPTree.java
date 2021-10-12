@@ -1,6 +1,8 @@
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.panda.template.bean.LPTagBean;
+import com.panda.template.bean.TagBean;
 import com.panda.template.utils.words.DividedWord;
 import com.panda.template.utils.words.DividedWordsUtil;
 import com.panda.template.utils.words.Executor;
@@ -23,6 +25,12 @@ public class TestCompleteLPTree {
     private static Map<String, List<DividedWord>> lpKwMap = new HashMap<>();
     private static Map<String, List<DividedWord>> bossKwMap = new HashMap<>();
     private static Map<String, List<DividedWord>> zlKwMap = new HashMap<>();
+
+    private static Map<String, List<TagBean>> bossTagMap = new HashMap<>();
+    private static Map<String, List<TagBean>> zlTagMap = new HashMap<>();
+    private static Map<String, List<TagBean>> lpTagMap = new HashMap<>();
+
+    private static Map<String, LPTagBean> lpPreTagMap = new HashMap<>();
 
     private static Map<String, Integer> keyStatistic = new HashMap<>();
 
@@ -53,8 +61,30 @@ public class TestCompleteLPTree {
         initZLJson();
     }
 
-    private static void deepAndGenerateKw(Map<String, List<DividedWord>> map, JSONObject obj) throws IOException {
+    private static void deepAndGenerateTags(Map<String, List<TagBean>> tagMap, JSONObject obj) {
+        String jobKindName = obj.getString("name");
+        JSONArray children = obj.getJSONArray("children");
+        if (children == null || children.isEmpty()) {
+            return;
+        }
+        List<TagBean> tagBeans = new ArrayList<>();
+        for (int i = 0 ; i < children.size() ; i ++) {
+            JSONObject temp = children.getJSONObject(i);
+            JSONArray tempChildren = temp.getJSONArray("children");
+            if (tempChildren == null || tempChildren.isEmpty()) {
+                continue;
+            }
+            for (int j = 0 ; j < tempChildren.size() ; j ++) {
+                JSONObject tagObj = tempChildren.getJSONObject(j);
+                tagBeans.add(new TagBean(tagObj.getString("name"), temp.getString("name")));
+            }
+        }
+        tagMap.put(jobKindName, tagBeans);
+    }
+
+    private static void deepAndGenerateKw(Map<String, List<DividedWord>> map, Map<String, List<TagBean>> tagMap, JSONObject obj) throws IOException {
         if (obj == null || obj.getInteger("level") > 3) {
+            deepAndGenerateTags(tagMap, obj);
             return;
         }
         String name = obj.getString("name");
@@ -70,21 +100,21 @@ public class TestCompleteLPTree {
         }
         JSONArray children = obj.getJSONArray("children");
         for (int i = 0 ; i < children.size() ; i ++) {
-            deepAndGenerateKw(map, children.getJSONObject(i));
+            deepAndGenerateKw(map, tagMap, children.getJSONObject(i));
         }
     }
 
     private static void generateKw() throws IOException {
         for (int i = 0 ; i < lpJson.size() ; i ++) {
-            deepAndGenerateKw(lpKwMap, lpJson.getJSONObject(i));
+            deepAndGenerateKw(lpKwMap, lpTagMap, lpJson.getJSONObject(i));
         }
 
         for (int i = 0 ; i < bossJson.size() ; i ++) {
-            deepAndGenerateKw(bossKwMap, bossJson.getJSONObject(i));
+            deepAndGenerateKw(bossKwMap, bossTagMap, bossJson.getJSONObject(i));
         }
 
         for (int i = 0 ; i < zlJson.size() ; i ++) {
-            deepAndGenerateKw(zlKwMap, zlJson.getJSONObject(i));
+            deepAndGenerateKw(zlKwMap, zlTagMap, zlJson.getJSONObject(i));
         }
     }
 
@@ -301,20 +331,28 @@ public class TestCompleteLPTree {
         deepJobTree(lpJson, new Executor<JSONObject>() {
             @Override
             public void exec(JSONObject jsonObject) throws Exception {
-                List<DividedWord> words = lpKwMap.get(jsonObject.getString("name"));
+                String name = jsonObject.getString("name");
+                List<DividedWord> words = lpKwMap.get(name);
                 Pair<String, Integer> bossRes = searchInBoss(words);
                 Pair<String, Integer> zlRes = searchInZL(words);
 //                System.out.println(jsonObject.getString("name") + " - " + bossRes + " - " + zlRes);
+                LPTagBean lpTagBean = new LPTagBean();
+                if (bossRes != null) {//根据匹配到的Boss的三级职类获取标签列表
+                    List<TagBean> bossTagList = bossTagMap.get(bossRes.getKey());
+                    lpTagBean.setBossTagList(bossTagList);
+                }
+                if (zlRes != null) {//根据匹配到的智联招聘的三级职类获取标签列表
+                    List<TagBean> zlTagList = zlTagMap.get(bossRes.getKey());
+                    lpTagBean.setBossTagList(zlTagList);
+                }
+                lpPreTagMap.put(name, lpTagBean);
                 total ++;
                 if (bossRes != null) boss ++;
                 if (zlRes != null) zl ++;
                 if (bossRes == null && zlRes != null) one ++;
                 if (bossRes != null && zlRes == null) one ++;
                 if (bossRes != null && zlRes != null) two ++;
-                if (bossRes == null && zlRes == null) {
-                    zero ++;
-//                    System.out.println(jsonObject.getString("name") + " - " + bossRes + " - " + zlRes);
-                }
+                if (bossRes == null && zlRes == null) zero ++;
             }
         });
         System.out.println("total: " + total);
@@ -330,6 +368,8 @@ public class TestCompleteLPTree {
         initWordDiction();//词库初始化
         generateKw();//对所有三级职类进行分词并生成关键词表
         deepLPJobTree();//遍历LPTree并且对每个三级职类进行判断
+
+
 
         List<DividedWord> words = lpKwMap.get("绩效经理/主管");
         System.out.println(words.size());

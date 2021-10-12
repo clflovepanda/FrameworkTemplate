@@ -1,41 +1,23 @@
 package com.panda.template.bean;
 
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
 public class TagBean {
 
-    private String tagName;
-    private String belong;
-    private String from;
-    private String reason;
+    private String name;
+    private String group;
+    private int type;
 
-    public String getTagName() {
-        return tagName;
+    public TagBean(String name, String group) {
+        this.name = name;
+        this.group = group;
     }
-
-    public void setTagName(String tagName) {
-        this.tagName = tagName;
-    }
-
-    public String getBelong() {
-        return belong;
-    }
-
-    public void setBelong(String belong) {
-        this.belong = belong;
-    }
-
-    public String getFrom() {
-        return from;
-    }
-
-    public void setFrom(String from) {
-        this.from = from;
-    }
-
-    public String getReason() {
-        return reason;
-    }
-
-    public void setReason(String reason) {
-        this.reason = reason;
+    public TagBean(String name, String group, int type) {
+        this.name = name;
+        this.group = group;
+        this.type = type;
     }
 }
