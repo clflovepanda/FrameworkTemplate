@@ -399,7 +399,6 @@ public class OriginDataBiz {
                 String name = jsonObject.getString("name");
                 List<DividedWord> words = lpKwMap.get(name);
                 if (words == null) {
-                    System.out.println("猎聘职类分词为空: " + name);
                     return;
                 }
                 Pair<String, Integer> bossRes = searchInBoss(words);

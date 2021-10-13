@@ -35,9 +35,7 @@ public class StudentController {
     public void getTags(@RequestParam("name") String name,
                                   HttpServletRequest request,
                                   HttpServletResponse response) throws IOException {
-        System.out.println(name);
         LPTagBean result = originDataBiz.getTags(name);
-        System.out.println(JSON.toJSONString(result));
         response.getWriter().write(URLEncoder.encode(JSON.toJSONString(result)));
     }
 
